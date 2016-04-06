@@ -3,7 +3,7 @@ var Schema = mongoose.Schema;
 var crypto = require('crypto');
 
 var config = {
-    iterations: process.env.ITERATIONS,
+    iterations: Number(process.env.ITERATIONS),
     keySize: 512,
     digest: 'sha512'
 };

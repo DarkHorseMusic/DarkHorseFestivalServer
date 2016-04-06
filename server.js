@@ -19,6 +19,13 @@ app.use(morgan('dev'));
 // Sets the app to initialise and use the passport package.
 app.use(passport.initialize());
  
+// Sets up CORS.
+app.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  next();
+});
+
 // Defines default route (GET http://localhost:5000).
 app.get('/', function(req, res) {
     res.send('Hello! The API is available at http://localhost:' + port + '/api');
