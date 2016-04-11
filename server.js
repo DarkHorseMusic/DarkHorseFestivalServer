@@ -116,22 +116,65 @@ apiRoutes.get('/userinfo', passport.authenticate('jwt', { session: false }), fun
     }
 });
 
-apiRoutes.post('/location', function(req, res) {
-    if (!req.body.name || !req.body.paths) {
-        res.json({ success: false, msg: 'Please provide a location name and the coordinates that form its paths.' });
-    } else {
-        var newLocation = new Location({
-            name: req.body.name,
-            paths: req.body.paths
-        });
-        
-        newLocation.save(function(err) {
+apiRoutes.post('/location', passport.authenticate('jwt', { session: false }), function(req, res) {
+    var token = getToken(req.headers);
+    if (token) {
+        var decoded = jwt.decode(token, config.secret);
+        User.findOne({
+            email: decoded.email
+        }, function(err, user) {
             if (err) {
-                return res.json({ success: false, msg: 'There was a problem saving the given location.' });
+                throw err;
             }
             
-            res.json({ success: true, msg: 'The new location has been successfully saved.', location_id: newLocation._id });
+            if (!user) {
+                return res.status(403).send({ success: false, msg: 'Failed attempt to access restricted area.' });
+            } else {
+                if (!req.body.name || !req.body.paths) {
+                    res.json({ success: false, msg: 'Please provide a location name and the coordinates that form its paths.' });
+                } else {
+                    if (req.body.location_id) {
+                        Location.findOne({ _id: req.body.location_id }, function(err, location) {
+                            if (err) {
+                                throw err;
+                            }
+                            
+                            if (!location) {
+                                return res.json({ success: false, msg: 'There was a problem saving the given location, the given id does not exist.' });
+                            } else {
+                                console.log(location);
+                                location.name = req.body.name;
+                                location.paths = req.body.paths;
+                                setLocationData(location, req.body);
+                                location.save(function(err) {
+                                    if (err) {
+                                        return res.json({ success: false, msg: 'There was a problem saving the given location, probably a malformed request.' });
+                                    }
+                                    
+                                    return res.json({ success: true, msg: 'The existing location has been successfully saved.', location_id: location._id });
+                                });
+                            }
+                        });
+                    } else {
+                        var newLocation = new Location({
+                            name: req.body.name,
+                            paths: req.body.paths
+                        });
+                        
+                        setLocationData(newLocation, req.body);
+                        newLocation.save(function(err) {
+                            if (err) {
+                                return res.json({ success: false, msg: 'There was a problem saving the given location, probably a malformed request.' });
+                            }
+                            
+                            return res.json({ success: true, msg: 'The new location has been successfully saved.', location_id: newLocation._id });
+                        });
+                    }
+                }
+            }
         });
+    } else {
+        return res.status(403).send({ success: false, msg: 'Failed attempt to access restricted area.' });
     }
 });
 
@@ -142,13 +185,35 @@ apiRoutes.get('/locations', function(req, res) {
         }
         
         if (!locations) {
-            return res.status(404).send({ success: false, msg: 'Failed to retrieve locations.' });
+            return res.status(404).send({ success: false, msg: 'Failed to retrieve locations with an unknown error.' });
         } else {
             res.json({ success: true, locations: locations });
         }
     });
 });
  
+var setLocationData = function(location, reqBody) {
+    if (reqBody.strokeColor) {
+        location.strokeColor = reqBody.strokeColor;
+    }
+    
+    if (reqBody.strokeOpacity) {
+        location.strokeOpacity = Number(reqBody.strokeOpacity);
+    }
+    
+    if (reqBody.strokeWeight) {
+        location.strokeWeight = Number(reqBody.strokeWeight);
+    }
+    
+    if (reqBody.fillColor) {
+        location.fillColor = reqBody.fillColor;
+    }
+    
+    if (reqBody.fillOpacity) {
+        location.fillOpacity = Number(reqBody.fillOpacity);
+    }
+};
+
 var getToken = function (headers) {
     if (headers && headers.authorization) {
         var parted = headers.authorization.split(' ');
