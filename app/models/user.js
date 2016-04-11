@@ -2,13 +2,14 @@ var mongoose = require('mongoose');
 var Schema = mongoose.Schema;
 var crypto = require('crypto');
 
+// Stores configuration that relates to how passwords are encrypted.
 var config = {
     iterations: Number(process.env.ITERATIONS),
     keySize: 512,
     digest: 'sha512'
 };
 
-// set up a mongoose model
+// Sets up the mongoose model for a user.
 var UserSchema = new Schema({
     email: {
         type: String,
@@ -25,6 +26,7 @@ var UserSchema = new Schema({
     }
 });
 
+// Encrypts the password before it gets saved to the database.
 UserSchema.pre('save', function (next) {
     var user = this;
     if (this.isModified('password') || this.isNew) {
@@ -52,6 +54,7 @@ UserSchema.pre('save', function (next) {
     }
 });
 
+// Defines a method that allows a plaintext password to be compared to the user's encrypted password for verification.
 UserSchema.methods.comparePassword = function (passw, callback) {
     var combined = new Buffer(this.password, 'base64');
     var saltBytes = combined.readUInt32BE(0);

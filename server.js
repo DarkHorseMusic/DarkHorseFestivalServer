@@ -4,8 +4,9 @@ var bodyParser  = require('body-parser');
 var morgan      = require('morgan');
 var mongoose    = require('mongoose');
 var passport	= require('passport');
-var config      = require('./config/database'); // get db config file
-var User        = require('./app/models/user'); // get the mongoose model
+var config      = require('./config/database'); // Gets the db config file.
+var User        = require('./app/models/user'); // Gets the mongoose model for a user.
+var Location    = require('./app/models/location'); // Gets the mongoose model for a location.
 var port        = process.env.PORT || 5000;
 var jwt         = require('jwt-simple');
  
@@ -33,6 +34,8 @@ app.get('/', function(req, res) {
 
 // Connects to the database.
 mongoose.connect(config.database);
+var dbConnection = mongoose.connection;
+dbConnection.on('error', console.error.bind(console, 'Connection error: '));
 
 // Passes the passport for configuration.
 require('./config/passport')(passport);
@@ -112,6 +115,39 @@ apiRoutes.get('/userinfo', passport.authenticate('jwt', { session: false }), fun
         return res.status(403).send({ success: false, msg: 'Failed attempt to access restricted area.' });
     }
 });
+
+apiRoutes.post('/location', function(req, res) {
+    if (!req.body.name || !req.body.paths) {
+        res.json({ success: false, msg: 'Please provide a location name and the coordinates that form its paths.' });
+    } else {
+        var newLocation = new Location({
+            name: req.body.name,
+            paths: req.body.paths
+        });
+        
+        newLocation.save(function(err) {
+            if (err) {
+                return res.json({ success: false, msg: 'There was a problem saving the given location.' });
+            }
+            
+            res.json({ success: true, msg: 'The new location has been successfully saved.', location_id: newLocation._id });
+        });
+    }
+});
+
+apiRoutes.get('/locations', function(req, res) {
+    Location.find({}, function(err, locations) {
+        if (err) {
+            throw err;
+        }
+        
+        if (!locations) {
+            return res.status(404).send({ success: false, msg: 'Failed to retrieve locations.' });
+        } else {
+            res.json({ success: true, locations: locations });
+        }
+    });
+});
  
 var getToken = function (headers) {
     if (headers && headers.authorization) {
@@ -130,4 +166,4 @@ app.use('/api', apiRoutes);
  
 // Start the server
 app.listen(port);
-console.log('For the mind, body, soul, eardrums and taste buds: http://localhost:' + port);
+console.log('For the mind, body, soul, and eardrums: http://localhost:' + port);
