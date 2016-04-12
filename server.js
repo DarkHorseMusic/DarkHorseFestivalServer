@@ -9,6 +9,7 @@ var User        = require('./app/models/user'); // Gets the mongoose model for a
 var Location    = require('./app/models/location'); // Gets the mongoose model for a location.
 var port        = process.env.PORT || 5000;
 var jwt         = require('jwt-simple');
+var emailing    = require('./app/services/emailing.js');
  
 // Gets our request parameters.
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -59,9 +60,43 @@ apiRoutes.post('/signup', function(req, res) {
                 return res.json({ success: false, msg: 'A user with the given e-mail address already exists.' });
             }
             
-            res.json({ success: true, msg: 'The new user has been successfully created.' });
+            try {
+                if (newUser.emailConfirmationToken) {
+                    var emailToken = new Buffer(newUser.email, 'utf8').toString('hex');
+                    emailing.sendEmailConfirmationMessage(newUser.email, newUser.emailConfirmationToken, emailToken, newUser.fullName);
+                }
+            } catch(err) {
+                console.log(err);
+            }
+            
+            return res.json({ success: true, msg: 'The new user has been successfully created.' });
         });
     }
+});
+
+apiRoutes.get(/^\/verify\/(\w+)(?:\/)(\w+)(?:\/?)$/, function(req, res) {
+    var emailConfirmationToken = req.params[0];
+    var emailToken = req.params[1];
+    var email = new Buffer(emailToken, 'hex').toString('utf8');
+    
+    User.findOne({ email: email, isEmailConfirmed: false }, function(err, user) {
+        if (err) {
+            throw err;
+        }
+        
+        if (!user) {
+            return res.json({ success: false, msg: 'The URL provided is invalid.' });
+        }
+        
+        if (user.emailConfirmationToken != emailConfirmationToken) {
+            return res.json({ success: false, msg: 'The URL provided is invalid.' });
+        }
+        
+        user.isEmailConfirmed = true;
+        user.save();
+        
+        return res.json({ success: true });
+    });
 });
 
 // Defines the route that allows existing users to authenticate themselves.
@@ -116,6 +151,7 @@ apiRoutes.get('/userinfo', passport.authenticate('jwt', { session: false }), fun
     }
 });
 
+// Defines the route that allows authenticated admin users to create a new location or modify an existing one.
 apiRoutes.post('/location', passport.authenticate('jwt', { session: false }), function(req, res) {
     var token = getToken(req.headers);
     if (token) {
@@ -127,11 +163,11 @@ apiRoutes.post('/location', passport.authenticate('jwt', { session: false }), fu
                 throw err;
             }
             
-            if (!user) {
+            if ((!user) || (!user.isAdmin)) {
                 return res.status(403).send({ success: false, msg: 'Failed attempt to access restricted area.' });
             } else {
                 if (!req.body.name || !req.body.paths) {
-                    res.json({ success: false, msg: 'Please provide a location name and the coordinates that form its paths.' });
+                    return res.json({ success: false, msg: 'Please provide a location name and the coordinates that form its paths.' });
                 } else {
                     if (req.body.location_id) {
                         Location.findOne({ _id: req.body.location_id }, function(err, location) {
@@ -178,6 +214,85 @@ apiRoutes.post('/location', passport.authenticate('jwt', { session: false }), fu
     }
 });
 
+// Defines the route that allows users to fetch a location from its id or name.
+apiRoutes.get('/location', function(req, res) {
+    if ((!req.body.location_id) && (!req.body.name)) {
+        return res.json({ success: false, msg: 'Please provide a location id or a location name.' });
+    }
+    
+    if (req.body.location_id) {
+        Location.findOne({ _id: req.body.location_id }, function(err, location) {
+            if (err) {
+                throw err;
+            }
+            
+            if (!location) {
+                return res.json({ success: false, msg: 'There was a problem retrieving the location.' });
+            }
+            
+            return res.json({ success: true, location: location });
+        });
+    }
+    
+    if (req.body.name) {
+        Location.findOne({ name: /req.body.name/ }, function(err, location) {
+            if (err) {
+                throw err;
+            }
+            
+            if (!location) {
+                return res.json({ success: false, msg: 'There was a problem retrieving the location.' });
+            }
+            
+            return res.json({ success: true, location: location });
+        });
+    }
+});
+
+// Defines the route that allows authenticated admin users to delete an existing location.
+apiRoutes.delete('/location', passport.authenticate('jwt', { session: false }), function(req, res) {
+    var token = getToken(req.headers);
+    if (token) {
+        var decoded = jwt.decode(token, config.secret);
+        User.findOne({
+            email: decoded.email
+        }, function(err, user) {
+            if (err) {
+                throw err;
+            }
+            
+            if ((!user) || (!user.isAdmin)) {
+                return res.status(403).send({ success: false, msg: 'Failed attempt to access restricted area.' });
+            } else {
+                if (!req.body.location_id) {
+                    return res.json({ success: false, msg: 'Please provide a location id.' });
+                }
+
+                Location.findOne({ _id: req.body.location_id }, function(err, location) {
+                    if (err) {
+                        throw err;
+                    }
+                    
+                    if (!location) {
+                        return res.json({ success: false, msg: 'There was a problem removing the location, the given id does not exist.' });
+                    }
+
+                    location.remove(function (err, location) {
+                        if (err) {
+                            return res.json({ success: false, msg: 'There was a problem removing the given location.' });
+                        }
+                        
+                        return res.json({ success: true, msg: 'The existing location has been successfully removed.', location_id: location._id });
+                    });
+                });
+            }
+        });
+    } else {
+        return res.status(403).send({ success: false, msg: 'Failed attempt to access restricted area.' });
+    }
+});
+
+// Defines the route that allows users to fetch all existing locations.
 apiRoutes.get('/locations', function(req, res) {
     Location.find({}, function(err, locations) {
         if (err) {
