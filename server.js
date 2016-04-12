@@ -115,10 +115,15 @@ apiRoutes.post('/authenticate', function(req, res) {
             // User was found, now checks if password matches.
             user.comparePassword(req.body.password, function (err, isMatch) {
                 if (isMatch && !err) {
-                    // Passwords match, creates a token.
-                    var token = jwt.encode(user, config.secret);
-                    // Returns the information including the token as JSON.
-                    res.json({ success: true, token: 'JWT ' + token });
+                    if (user.isEmailConfirmed) {
+                        // Passwords match, e-mail is confirmed, creates a token.
+                        var token = jwt.encode(user, config.secret);
+                        // Returns the information including the token as JSON.
+                        res.json({ success: true, token: 'JWT ' + token });
+                    } else {
+                        // Passwords match but e-mail isn't confirmed, fails authentication.
+                        res.json({ success: false, msg: 'Your e-mail address has not been verified yet, please verify it.' });
+                    }
                 } else {
                     // Passwords did not match.
                     res.send({ success: false, msg: 'Authentication failed. E-mail address or password incorrect.' });
