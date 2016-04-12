@@ -17,7 +17,7 @@ app.use(bodyParser.json());
  
 // Sets log to console.
 app.use(morgan('dev'));
- 
+
 // Sets the app to initialise and use the passport package.
 app.use(passport.initialize());
  
@@ -30,7 +30,7 @@ app.use(function(req, res, next) {
 
 // Defines default route (GET http://localhost:5000).
 app.get('/', function(req, res) {
-    res.send('Hello! The API is available at http://localhost:' + port + '/api');
+    res.send('Hello! The API is available at ' + process.env.API_HOST + ':' + port + '/api');
 });
 
 // Connects to the database.
@@ -346,4 +346,4 @@ app.use('/api', apiRoutes);
  
 // Start the server
 app.listen(port);
-console.log('For the mind, body, soul, and eardrums: http://localhost:' + port);
+console.log('For the mind, body, soul, and eardrums: ' + process.env.API_HOST + ':' + port);

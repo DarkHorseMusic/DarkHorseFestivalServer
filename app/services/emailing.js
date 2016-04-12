@@ -2,7 +2,7 @@ var SparkPost = require('sparkpost');
 var sparky = new SparkPost();
 
 var sendEmailConfirmationMessage = function(email, confirmationToken, emailToken, fullName) {
-    var verifyLink = 'http://localhost:5000/api/verify/' + confirmationToken + '/' + emailToken;
+    var verifyLink = process.env.API_HOST + ':' + process.env.PORT + '/api/verify/' + confirmationToken + '/' + emailToken;
     sparky.transmissions.send({
         transmissionBody: {
             content: {
