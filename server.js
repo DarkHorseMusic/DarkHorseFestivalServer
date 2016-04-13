@@ -10,6 +10,7 @@ var Location    = require('./app/models/location'); // Gets the mongoose model f
 var port        = process.env.PORT || 5000;
 var jwt         = require('jwt-simple');
 var emailing    = require('./app/services/emailing.js');
+var auth        = require('./app/services/auth.js');
  
 // Gets our request parameters.
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -23,9 +24,9 @@ app.use(passport.initialize());
  
 // Sets up CORS.
 app.use(function(req, res, next) {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-  next();
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+    next();
 });
 
 // Defines default route (GET http://localhost:5000).
@@ -54,7 +55,7 @@ apiRoutes.post('/signup', function(req, res) {
             password: req.body.password,
             fullName: req.body.fullName
         });
-        
+
         newUser.save(function(err) {
             if (err) {
                 return res.json({ success: false, msg: 'A user with the given e-mail address already exists.' });
@@ -74,27 +75,28 @@ apiRoutes.post('/signup', function(req, res) {
     }
 });
 
+// Defines the route that allows existing users to verify their e-mail address. 
 apiRoutes.get(/^\/verify\/(\w+)(?:\/)(\w+)(?:\/?)$/, function(req, res) {
     var emailConfirmationToken = req.params[0];
     var emailToken = req.params[1];
     var email = new Buffer(emailToken, 'hex').toString('utf8');
-    
+
     User.findOne({ email: email, isEmailConfirmed: false }, function(err, user) {
         if (err) {
             throw err;
         }
-        
+
         if (!user) {
             return res.json({ success: false, msg: 'The URL provided is invalid.' });
         }
-        
+
         if (user.emailConfirmationToken != emailConfirmationToken) {
             return res.json({ success: false, msg: 'The URL provided is invalid.' });
         }
-        
+
         user.isEmailConfirmed = true;
         user.save();
-        
+
         return res.json({ success: true });
     });
 });
@@ -107,7 +109,7 @@ apiRoutes.post('/authenticate', function(req, res) {
         if (err) {
             throw err;
         }
-         
+
         if (!user) {
             // No user with the given name found.
             res.send({success: false, msg: 'Authentication failed. E-mail address or password incorrect.'});
@@ -135,120 +137,92 @@ apiRoutes.post('/authenticate', function(req, res) {
 
 // Defines the route that allows authenticated users to get their user information.
 apiRoutes.get('/userinfo', passport.authenticate('jwt', { session: false }), function(req, res) {
-    var token = getToken(req.headers);
-    if (token) {
-        var decoded = jwt.decode(token, config.secret);
-        User.findOne({
-            email: decoded.email
-        }, function(err, user) {
-            if (err) {
-                throw err;
-            }
-            
-            if (!user) {
-                return res.status(403).send({ success: false, msg: 'Failed attempt to access restricted area.' });
-            } else {
-                res.json({ success: true, fullName: user.fullName });
-            }
-        });
-    } else {
-        return res.status(403).send({ success: false, msg: 'Failed attempt to access restricted area.' });
-    }
+    auth.checkAuthenticated(req.headers).then(function(user) {
+        return res.json({ success: true, fullName: user.fullName });
+    }, function(httpStatus, msg) {
+        return res.status(httpStatus).json({ success: false, msg: msg });
+    });
 });
 
 // Defines the route that allows authenticated admin users to create a new location or modify an existing one.
 apiRoutes.post('/location', passport.authenticate('jwt', { session: false }), function(req, res) {
-    var token = getToken(req.headers);
-    if (token) {
-        var decoded = jwt.decode(token, config.secret);
-        User.findOne({
-            email: decoded.email
-        }, function(err, user) {
-            if (err) {
-                throw err;
-            }
-            
-            if ((!user) || (!user.isAdmin)) {
-                return res.status(403).send({ success: false, msg: 'Failed attempt to access restricted area.' });
-            } else {
-                if (!req.body.name || !req.body.paths) {
-                    return res.json({ success: false, msg: 'Please provide a location name and the coordinates that form its paths.' });
-                } else {
-                    if (req.body.location_id) {
-                        Location.findOne({ _id: req.body.location_id }, function(err, location) {
-                            if (err) {
-                                throw err;
-                            }
-                            
-                            if (!location) {
-                                return res.json({ success: false, msg: 'There was a problem saving the given location, the given id does not exist.' });
-                            } else {
-                                console.log(location);
-                                location.name = req.body.name;
-                                location.paths = req.body.paths;
-                                setLocationData(location, req.body);
-                                location.save(function(err) {
-                                    if (err) {
-                                        return res.json({ success: false, msg: 'There was a problem saving the given location, probably a malformed request.' });
-                                    }
-                                    
-                                    return res.json({ success: true, msg: 'The existing location has been successfully saved.', location_id: location._id });
-                                });
-                            }
-                        });
+    auth.checkAuthenticated(req.headers, true).then(function(user) {
+        if (!req.body.name || !req.body.paths) {
+            return res.json({ success: false, msg: 'Please provide a location name and the coordinates that form its paths.' });
+        } else {
+            if (req.body.location_id) {
+                Location.findOne({ _id: req.body.location_id }, function(err, location) {
+                    if (err) {
+                        throw err;
+                    }
+
+                    if (!location) {
+                        return res.json({ success: false, msg: 'There was a problem saving the given location, the given id does not exist.' });
                     } else {
-                        var newLocation = new Location({
-                            name: req.body.name,
-                            paths: req.body.paths
-                        });
-                        
-                        setLocationData(newLocation, req.body);
-                        newLocation.save(function(err) {
+                        console.log(location);
+                        location.name = req.body.name;
+                        location.paths = req.body.paths;
+                        setLocationData(location, req.body);
+                        location.save(function(err) {
                             if (err) {
                                 return res.json({ success: false, msg: 'There was a problem saving the given location, probably a malformed request.' });
                             }
                             
-                            return res.json({ success: true, msg: 'The new location has been successfully saved.', location_id: newLocation._id });
+                            return res.json({ success: true, msg: 'The existing location has been successfully saved.', location_id: location._id });
                         });
                     }
-                }
+                });
+            } else {
+                var newLocation = new Location({
+                    name: req.body.name,
+                    paths: req.body.paths
+                });
+
+                setLocationData(newLocation, req.body);
+                newLocation.save(function(err) {
+                    if (err) {
+                        return res.json({ success: false, msg: 'There was a problem saving the given location, probably a malformed request.' });
+                    }
+
+                    return res.json({ success: true, msg: 'The new location has been successfully saved.', location_id: newLocation._id });
+                });
             }
-        });
-    } else {
-        return res.status(403).send({ success: false, msg: 'Failed attempt to access restricted area.' });
-    }
+        }
+    }, function(httpStatus, msg) {
+        return res.status(httpStatus).json({ success: false, msg: msg });        
+    });
 });
 
 // Defines the route that allows users to fetch a location from its id or name.
 apiRoutes.get('/location', function(req, res) {
-    if ((!req.body.location_id) && (!req.body.name)) {
+    if ((!req.query.location_id) && (!req.query.name)) {
         return res.json({ success: false, msg: 'Please provide a location id or a location name.' });
     }
-    
-    if (req.body.location_id) {
-        Location.findOne({ _id: req.body.location_id }, function(err, location) {
+
+    if (req.query.location_id) {
+        Location.findOne({ _id: req.query.location_id }, function(err, location) {
             if (err) {
                 throw err;
             }
-            
+
             if (!location) {
                 return res.json({ success: false, msg: 'There was a problem retrieving the location.' });
             }
-            
+
             return res.json({ success: true, location: location });
         });
     }
-    
-    if (req.body.name) {
-        Location.findOne({ name: /req.body.name/ }, function(err, location) {
+
+    if (req.query.name) {
+        Location.findOne({ name: { '$regex': req.query.name } }, function(err, location) {
             if (err) {
                 throw err;
             }
-            
+
             if (!location) {
                 return res.json({ success: false, msg: 'There was a problem retrieving the location.' });
             }
-            
+
             return res.json({ success: true, location: location });
         });
     }
@@ -256,45 +230,31 @@ apiRoutes.get('/location', function(req, res) {
 
 // Defines the route that allows authenticated admin users to delete an existing location.
 apiRoutes.delete('/location', passport.authenticate('jwt', { session: false }), function(req, res) {
-    var token = getToken(req.headers);
-    if (token) {
-        var decoded = jwt.decode(token, config.secret);
-        User.findOne({
-            email: decoded.email
-        }, function(err, user) {
+    auth.checkAuthenticated(req.headers, true).then(function(user) {
+        if (!req.body.location_id) {
+            return res.json({ success: false, msg: 'Please provide a location id.' });
+        }
+
+        Location.findOne({ _id: req.body.location_id }, function(err, location) {
             if (err) {
                 throw err;
             }
-            
-            if ((!user) || (!user.isAdmin)) {
-                return res.status(403).send({ success: false, msg: 'Failed attempt to access restricted area.' });
-            } else {
-                if (!req.body.location_id) {
-                    return res.json({ success: false, msg: 'Please provide a location id.' });
+
+            if (!location) {
+                return res.json({ success: false, msg: 'There was a problem removing the location, the given id does not exist.' });
+            }
+
+            location.remove(function (err, location) {
+                if (err) {
+                    return res.json({ success: false, msg: 'There was a problem removing the given location.' });
                 }
 
-                Location.findOne({ _id: req.body.location_id }, function(err, location) {
-                    if (err) {
-                        throw err;
-                    }
-                    
-                    if (!location) {
-                        return res.json({ success: false, msg: 'There was a problem removing the location, the given id does not exist.' });
-                    }
-
-                    location.remove(function (err, location) {
-                        if (err) {
-                            return res.json({ success: false, msg: 'There was a problem removing the given location.' });
-                        }
-                        
-                        return res.json({ success: true, msg: 'The existing location has been successfully removed.', location_id: location._id });
-                    });
-                });
-            }
+                return res.json({ success: true, msg: 'The existing location has been successfully removed.', location_id: location._id });
+            });
         });
-    } else {
-        return res.status(403).send({ success: false, msg: 'Failed attempt to access restricted area.' });
-    }
+    }, function(httpStatus, msg) {
+        return res.status(httpStatus).json({ success: false, msg: msg });
+    });
 });
 
 // Defines the route that allows users to fetch all existing locations.
@@ -303,7 +263,7 @@ apiRoutes.get('/locations', function(req, res) {
         if (err) {
             throw err;
         }
-        
+
         if (!locations) {
             return res.status(404).send({ success: false, msg: 'Failed to retrieve locations with an unknown error.' });
         } else {
@@ -316,39 +276,27 @@ var setLocationData = function(location, reqBody) {
     if (reqBody.strokeColor) {
         location.strokeColor = reqBody.strokeColor;
     }
-    
+
     if (reqBody.strokeOpacity) {
         location.strokeOpacity = Number(reqBody.strokeOpacity);
     }
-    
+
     if (reqBody.strokeWeight) {
         location.strokeWeight = Number(reqBody.strokeWeight);
     }
-    
+
     if (reqBody.fillColor) {
         location.fillColor = reqBody.fillColor;
     }
-    
+
     if (reqBody.fillOpacity) {
         location.fillOpacity = Number(reqBody.fillOpacity);
-    }
-};
-
-var getToken = function (headers) {
-    if (headers && headers.authorization) {
-        var parted = headers.authorization.split(' ');
-        if (parted.length === 2) {
-            return parted[1];
-        } else {
-            return null;
-        }
-    } else {
-        return null;
     }
 };
 
 app.use('/api', apiRoutes);
  
 // Start the server
-app.listen(port);
-console.log('For the mind, body, soul, and eardrums: ' + process.env.API_HOST + ':' + port);
+app.listen(port, function() {
+    console.log('For the mind, body, soul, and eardrums: ' + process.env.API_HOST + ':' + port);
+});
