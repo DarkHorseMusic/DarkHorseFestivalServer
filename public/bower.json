@@ -1,0 +1,25 @@
+{
+  "name": "Dark Horse Music Server",
+  "description": "The server providing web services to the the mobile application with information about the Dark Horse Music Festival.",
+  "main": "index.html",
+  "moduleType": [],
+  "authors": [
+    "Felipe Ceotto"
+  ],
+  "license": "MIT",
+  "homepage": "https://darkhorsemusic.im",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "bootstrap": "^3.3.6",
+    "respond": "^1.4.2",
+    "html5shiv": "^3.7.3",
+    "angular": "angularjs#^1.5.4"
+  }
+}

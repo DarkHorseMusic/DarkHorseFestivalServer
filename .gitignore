@@ -34,3 +34,6 @@ node_modules
 
 # Heroku environment variables
 .env
+
+# Bower components folder
+bower_components

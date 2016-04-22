@@ -1,0 +1,49 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Launch",
+			"type": "node",
+			"request": "launch",
+			"program": "${workspaceRoot}/server.js",
+			"stopOnEntry": false,
+			"args": [],
+			"cwd": "${workspaceRoot}",
+			"preLaunchTask": null,
+			"runtimeExecutable": null,
+			"runtimeArgs": [
+				"--nolazy"
+			],
+			"env": {
+				"NODE_ENV": "development",
+				"API_HOST": "http://localhost",
+				"EASYSMS_URL": "https://570cfda5c6a41a000d000000:60e507985592444d64ff3eca6f6fd467@api.easysmsapp.com/accounts/570cfda5c6a41a000d000000",
+				"ITERATIONS": 9973,
+				"JWT_SECRET": "31ab0f735c8ee09a4b27d09693d707a0ba54e4b7265598413d500c96aadb3855",
+				"MONGOLAB_URI": "mongodb://heroku_sblcx3rs:m50fhuuvuo0mcf10fvnnuv4qp5@ds013559.mlab.com:13559/heroku_sblcx3rs",
+				"SPARKPOST_API_KEY": "9a4316a301b73695fd1a3d06f57d1d6664ee1adb",
+				"SPARKPOST_API_URL": "https://api.sparkpost.com/api/v1",
+				"SPARKPOST_SANDBOX_DOMAIN": "sparkpostbox.com",
+				"SPARKPOST_SMTP_HOST": "smtp.sparkpostmail.com",
+				"SPARKPOST_SMTP_PASSWORD": "9a4316a301b73695fd1a3d06f57d1d6664ee1adb",
+				"SPARKPOST_SMTP_PORT": 587,
+				"SPARKPOST_SMTP_USERNAME": "SMTP_Injection"
+			},
+			"externalConsole": false,
+			"sourceMaps": false,
+			"outDir": null
+		},
+		{
+			"name": "Attach",
+			"type": "node",
+			"request": "attach",
+			"port": 5000,
+			"address": "localhost",
+			"restart": false,
+			"sourceMaps": false,
+			"outDir": null,
+			"localRoot": "${workspaceRoot}",
+			"remoteRoot": null
+		}
+	]
+}

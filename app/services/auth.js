@@ -1,12 +1,11 @@
 var jwt         = require('jwt-simple');
 var User        = require('../models/user'); // Gets the mongoose model for a user.
-var config      = require('../../config/database'); // Gets the db config file.
 
 var checkAuthenticated = function(headers, adminOnly) {
     return new Promise(function(resolve, reject) {
         var token = getToken(headers);
         if (token) {
-            var decoded = jwt.decode(token, config.secret);
+            var decoded = jwt.decode(token, process.env.JWT_SECRET);
             User.findOne({
                 email: decoded.email
             }, function(err, user) {
