@@ -38,7 +38,7 @@ require('./config/passport')(passport);
 
 var signUpRoute = function(req, res) {
     if (!req.body.email || !req.body.password || !req.body.fullName) {
-        res.json({ success: false, msg: 'Please provide e-mail, password and full name.' });
+        return res.json({ success: false, msg: 'Please provide e-mail, password and full name.' });
     } else {
         var newUser = new User({
             email: req.body.email,
@@ -156,6 +156,45 @@ var authenticateRoute = function(req, res) {
 var userInfoRoute = function(req, res) {
     auth.checkAuthenticated(req.headers).then(function(user) {
         return res.json({ success: true, fullName: user.fullName });
+    }, function(httpStatus, msg) {
+        return res.status(httpStatus).json({ success: false, msg: msg });
+    });
+};
+
+var userInfoPostRoute = function(req, res) {
+    auth.checkAuthenticated(req.headers).then(function(user) {
+        if (!req.body.email && !req.body.password && !req.body.fullName) {
+            return res.json({ success: false, msg: 'Please provide e-mail, password or full name.' });
+        } else {
+            if (req.body.email) {
+                user.email = req.body.email;
+            }
+            
+            if (req.body.password) {
+                user.password = req.body.password;
+            }
+            
+            if (req.body.fullName) {
+                user.fullName = req.body.fullName;
+            }
+            
+            user.save(function(err) {
+                if (err) {
+                    return res.json({ success: false, msg: 'A user with the given e-mail address already exists.' });
+                }
+                
+                try {
+                    if (user.emailConfirmationToken && !user.isEmailConfirmed) {
+                        var emailToken = new Buffer(user.email, 'utf8').toString('hex');
+                        emailing.sendEmailConfirmationMessage(user.email, user.emailConfirmationToken, emailToken, user.fullName);
+                    }
+                } catch(err) {
+                    console.log(err);
+                }
+                
+                return res.json({ success: true, msg: 'Your user has been successfully updated, if you have updated your e-mail address please check your e-mail to verify the new address before logging in.' });
+            });
+        }
     }, function(httpStatus, msg) {
         return res.status(httpStatus).json({ success: false, msg: msg });
     });
@@ -323,6 +362,9 @@ apiRoutes.post('/authenticate', authenticateRoute);
 
 // Defines the route that allows authenticated users to get their user information.
 apiRoutes.get('/userinfo', passport.authenticate('jwt', { session: false }), userInfoRoute);
+
+// Defines the route that allows authenticated users to update their user information.
+apiRoutes.post('/userinfo', passport.authenticate('jwt', { session: false }), userInfoPostRoute);
 
 // Defines the route that allows authenticated admin users to create a new location or modify an existing one.
 apiRoutes.post('/location', passport.authenticate('jwt', { session: false }), locationPostRoute);

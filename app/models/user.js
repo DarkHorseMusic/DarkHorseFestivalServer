@@ -71,7 +71,7 @@ UserSchema.pre('save', function (next) {
 // Creates an email confirmation token before saving a new user to the database.
 UserSchema.pre('save', function(next) {
     var user = this;
-    if (!this.isNew) {
+    if ((!this.isNew) && (!this.isModified('email'))) {
         return next();
     }
 
@@ -80,6 +80,7 @@ UserSchema.pre('save', function(next) {
             return next(err);
         }
 
+        user.isEmailConfirmed = false;
         user.emailConfirmationToken = salt.toString('hex');
         next();
     });
